@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 import gevent
 import sys, time
-from urlparse import urlparse
+from urllib.parse import urlparse
 
-from StringIO import StringIO
+from io import StringIO
 
 from functools import wraps
 from gevent.lock import RLock
@@ -14,13 +14,13 @@ import codecs
 import logging
 import subprocess
 import tempfile
-from cookielib import Cookie, LWPCookieJar
+from http.cookiejar import Cookie, LWPCookieJar
 
 import lxml.html as HTML
 
 import sip
 
-sip.setapi(u'QVariant', 2)
+sip.setapi('QVariant', 2)
 
 from PyQt4.Qt import Qt
 from PyQt4.QtTest import QTest
@@ -126,8 +126,7 @@ class XPath(object):
 
     def execute(self, *arg, **kwargs):
         try:
-            return map(lambda x: unicode(x) if isinstance(x, basestring) else XPath(x),
-                       self._parser_content.xpath(*arg, **kwargs))
+            return [str(x) if isinstance(x, str) else XPath(x) for x in self._parser_content.xpath(*arg, **kwargs)]
         except Exception:
             return None
 
@@ -264,7 +263,7 @@ class QtMainLoop(object):
                 while self._app.hasPendingEvents():
                     self._app.processEvents()
                 gevent.sleep(0.01)
-        except Exception, e:
+        except Exception as e:
             logger.error(e)
         logger.debug('Goodbye GRobot')
 
@@ -276,7 +275,7 @@ class HttpResource(object):
 
     def __init__(self, reply, cache, content=None):
         self.url = reply.url()
-        self.request_url = unicode(reply.request().url().toString())
+        self.request_url = str(reply.request().url().toString())
         self.content = content
         if self.content is None:
             # Tries to get back content from cache
@@ -284,7 +283,7 @@ class HttpResource(object):
             if _buffer is not None:
                 content = _buffer.readAll()
                 try:
-                    self.content = unicode(content)
+                    self.content = str(content)
                 except UnicodeDecodeError:
                     self.content = content
 
@@ -296,7 +295,7 @@ class HttpResource(object):
         logger.debug("Resource loaded: %s %s" % (self.url, self.http_status))
         self.headers = {}
         for header in reply.rawHeaderList():
-            self.headers[unicode(header)] = unicode(reply.rawHeader(header))
+            self.headers[str(header)] = str(reply.rawHeader(header))
         self._reply = reply
 
 
@@ -514,18 +513,18 @@ class GRobot(object):
 
     @popup_messages.setter
     def popup_messages(self, value):
-        self._popup_messages = unicode(value)
+        self._popup_messages = str(value)
 
 
     @property
     def url(self):
-        return unicode(self.main_frame.url().toString())
+        return str(self.main_frame.url().toString())
 
 
 
     def content(self):
         """Returns current frame HTML as a string."""
-        return unicode(self.main_frame.toHtml())
+        return str(self.main_frame.toHtml())
 
     @property
     def cookies(self):
@@ -670,7 +669,7 @@ class GRobot(object):
             return css('#' + query)
 
         def link(query):
-            return xpath(u"//a[text()='%s']" % query.replace("\'", "\\'"))
+            return xpath("//a[text()='%s']" % query.replace("\'", "\\'"))
 
         def css(query):
             result = []
@@ -680,7 +679,7 @@ class GRobot(object):
             return result
 
         def xpath(query):
-            positions = self.evaluate(u"""
+            positions = self.evaluate("""
             function GetAbsoluteLocationEx(element)
             {
                 if ( arguments.length != 1 || element == null )
@@ -714,7 +713,7 @@ class GRobot(object):
             result
             """ % query.replace("\'", "\\'"))
 
-            return map(lambda x: QPoint(*tuple(x)), positions)
+            return [QPoint(*tuple(x)) for x in positions]
 
         return locals()[attr](val)
 
@@ -828,7 +827,7 @@ class GRobot(object):
 
         ele.setFocus()
         ele.evaluateJavaScript(
-            u"""
+            """
             core.events.setValue(this, '%s')
             """ % (text.replace("\n", "\\n").replace("\'", "\\'"))
         )
@@ -856,13 +855,13 @@ class GRobot(object):
                 if ele_checked != checked:
                     self._click_position(position)
             else:
-                raise ValueError, "%s is not a checkbox or radio" % selector
+                raise ValueError("%s is not a checkbox or radio" % selector)
 
     @have_a_break
     def select(self, selector, value):
 
         def _select(query, select_by, select):
-            select.evaluateJavaScript(u"""
+            select.evaluateJavaScript("""
             triggerEvent(this, 'focus', false);
             var changed = false;
             var optionToSelect = '%s';
@@ -884,7 +883,7 @@ class GRobot(object):
             """ % ( query.replace("\'", "\\'"), select_by, select_by))
 
         def _add_selection(query, select_by, select, selected):
-            select.evaluateJavaScript(u"""
+            select.evaluateJavaScript("""
             triggerEvent(this, 'focus', false);
             var optionToSelect = '%s';
             for (var i = 0; i < this.options.length; i++) {
@@ -1043,14 +1042,14 @@ class GRobot(object):
         @param resources:
         @return: @raise:
         """
-        if isinstance(pattern, basestring):
+        if isinstance(pattern, str):
             is_match = lambda x: pattern == x
         elif isinstance(pattern, _pattern_type):
             is_match = lambda x: pattern.match(x)
         elif hasattr(pattern, '__call__'):
             is_match = pattern
         else:
-            raise TypeError, 'pattern must be one of str,re.compile,callable'
+            raise TypeError('pattern must be one of str,re.compile,callable')
         return filter(lambda x: is_match(x.request_url), self.http_resources)[:]
 
 
@@ -1108,7 +1107,7 @@ class GRobot(object):
         elif cookie_storage.__class__.__name__.endswith('CookieJar'):
             toQtCookieJar(cookie_storage, self.cookie_jar)
         else:
-            raise ValueError, 'unsupported cookie_storage type.'
+            raise ValueError('unsupported cookie_storage type.')
 
 
     def save_cookies(self, cookie_storage):
@@ -1134,7 +1133,7 @@ class GRobot(object):
             domain_specified = bool(v != "")
             domain = v
             domain_initial_dot = v.startswith('.') if domain_specified else None
-            v = long(QtCookie.expirationDate().toTime_t())
+            v = int(QtCookie.expirationDate().toTime_t())
             # Long type boundary on 32bit platfroms; avoid ValueError
             expires = 2147483647 if v > 2147483647 else v
             rest = {}
@@ -1150,7 +1149,7 @@ class GRobot(object):
         elif cookie_storage.__class__.__name__.endswith('CookieJar'):
             toPyCookieJar(self.cookie_jar, cookie_storage)
         else:
-            raise ValueError, 'unsupported cookie_storage type.'
+            raise ValueError('unsupported cookie_storage type.')
 
 
     def wait_for_confirm(self, confirm=True, callback=None):
@@ -1216,7 +1215,7 @@ class GRobot(object):
         while not condition():
             if time_for_stop != -1 and time.time() > (started_at + time_for_stop):
                 if self._loaded:
-                    raise OperateTimeout, timeout_message
+                    raise OperateTimeout(timeout_message)
                 else:
                     # raise LoadingTimeout, timeout_message
                     self.trigger_action('Stop') #QWebPage::Stop
@@ -1263,7 +1262,7 @@ class GRobot(object):
             self.evaluate_js_file(os.path.dirname(__file__) + '/javascripts/' + script)
 
         if self.jquery_namespace:
-            self.evaluate(u"%s=jQuery.noConflict();" % self.jquery_namespace)
+            self.evaluate("%s=jQuery.noConflict();" % self.jquery_namespace)
 
         self._loaded = True
         # self.cache.clear()
@@ -1320,7 +1319,7 @@ class GRobot(object):
         @param reply:
         @param errors:
         """
-        url = unicode(reply.url().toString())
+        url = str(reply.url().toString())
         if self.ignore_ssl_errors:
             reply.ignoreSslErrors()
         else:

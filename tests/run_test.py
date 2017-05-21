@@ -5,7 +5,7 @@ import unittest
 import logging
 
 from grobot import GRobot, confirm, prompt
-from app import app
+from .app import app
 import gevent
 from gevent.wsgi import WSGIServer
 from PyQt4.QtWebKit import *
@@ -423,7 +423,7 @@ class GRobotNativeTest(GRobotTest):
     
     
     def test_set_field_value_textarea(self):
-        expected = u"sample text\n'another line\n这是一个好项目"
+        expected = "sample text\n'another line\n这是一个好项目"
         self.robot.open("%sform" % base_url)
         self.robot.type( 'name=textarea', expected)
         value = self.robot.evaluate('document.getElementById("textarea").value')
